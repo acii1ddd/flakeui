@@ -47,14 +47,18 @@ internal sealed class NativeRainSession : IDisposable
     internal int Busy => gpu.Busy;
     internal nint Handle => gpu.Handle;
 
-    internal NativeRainSession(Action<COMException> onError, NativeEffect effect = NativeEffect.Rain)
+    internal System.Drawing.Rectangle Bounds { get; }
+    internal uint Dpi { get; }
+    internal NativeRainSession(Action<COMException> onError, NativeEffect effect = NativeEffect.Rain,
+        System.Drawing.Rectangle? monitorBounds = null)
     {
         this.onError = onError;
-        var bounds = Forms.Screen.PrimaryScreen!.Bounds;
+        var bounds = Bounds = monitorBounds ?? Forms.Screen.PrimaryScreen!.Bounds;
         gpu = new DirectRain(bounds);
         try
         {
-            double inverseScale = 96.0 / Math.Max(96u, DirectRain.GetDpiForWindow(gpu.Handle));
+            Dpi = DirectRain.GetDpiForWindow(gpu.Handle);
+            double inverseScale = 96.0 / Math.Max(96u, Dpi);
             fromDevice = Matrix.Identity;
             fromDevice.Scale(inverseScale, inverseScale);
             viewport = new Size(bounds.Width * fromDevice.M11, bounds.Height * fromDevice.M22);

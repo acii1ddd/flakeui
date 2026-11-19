@@ -98,11 +98,43 @@ internal static class Program
         string? testFile = checkSettings ? Path.Combine(Path.GetTempPath(), $"flakeui-{Guid.NewGuid():N}.json") : null;
         using var settings = new SettingsStore(testFile);
         FlakeUI.SettingsWindow? panel = null;
+        int effectVersion = 0;
+        var displays = new Dictionary<string, NativeRainSession>(StringComparer.OrdinalIgnoreCase);
         NativeRainSession? native = null;
+        void StopDisplays()
+        {
+            foreach (var display in displays.Values) display.Dispose();
+            displays.Clear();
+            native = null;
+        }
+        void SyncDisplays(NativeEffect effects)
+        {
+            var screens = Forms.Screen.AllScreens;
+            foreach (var name in displays.Keys.ToArray())
+            {
+                var screen = Array.Find(screens, item => item.DeviceName == name);
+                var display = displays[name];
+                if (screen != null && screen.Bounds == display.Bounds && display.Dpi == DirectRain.GetDpiForWindow(display.Handle)) continue;
+                display.Dispose();
+                displays.Remove(name);
+                effectVersion++;
+            }
+            foreach (var screen in screens)
+            {
+                if (!displays.TryGetValue(screen.DeviceName, out var display))
+                {
+                    display = new NativeRainSession(ShowError, effects, screen.Bounds);
+                    displays.Add(screen.DeviceName, display);
+                }
+                else if (display.Effect != effects) display.SetEffects(effects);
+                display.Preferences = settings.Values;
+                if (screen.Primary) native = display;
+            }
+            native = displays.Values.FirstOrDefault(d => ReferenceEquals(d, native)) ?? displays.Values.FirstOrDefault();
+        }
         var off = new Forms.ToolStripMenuItem("Off");
         var borders = new Forms.ToolStripMenuItem("Start Tacky Borders");
 
-        int effectVersion = 0;
         NativeEffect CurrentEffects() => native?.Effect ?? NativeEffect.None;
         var measure = new Forms.ToolStripMenuItem("Measure DirectX (10 seconds)");
 
@@ -119,17 +151,14 @@ internal static class Program
             effectVersion++;
             if (effects == NativeEffect.None)
             {
-                native?.Dispose();
-                native = null;
+                StopDisplays();
             }
             else
             {
 
                 try
                 {
-                    if (native is null) native = new NativeRainSession(ShowError, effects);
-                    else native.SetEffects(effects);
-                    native.Preferences = settings.Values;
+                    SyncDisplays(effects);
                 }
                 catch (COMException error) { ShowError(error); }
             }
@@ -138,7 +167,8 @@ internal static class Program
 
         void ShowError(COMException error)
         {
-            SelectEffects(NativeEffect.None);
+            StopDisplays();
+            UpdateMenu();
             SaveNativeError(error);
             tray.ShowBalloonTip(4000, "flakeui",
                 "DirectX stopped. Select an effect to retry.", Forms.ToolTipIcon.Warning);
@@ -235,11 +265,20 @@ internal static class Program
                 }
             });
         }
+        using var displayTimer = new Forms.Timer { Interval = 2000 };
+        displayTimer.Tick += (_, _) =>
+        {
+            if (native is null) return;
+            try { SyncDisplays(native.Effect); }
+            catch (COMException error) { ShowError(error); }
+        };
+        displayTimer.Start();
         if (args.Contains("--settings")) OpenSettings();
         try { app.Run(); }
         finally
         {
-            native?.Dispose();
+            displayTimer.Stop();
+            StopDisplays();
             tray.Visible = false;
         }
     }

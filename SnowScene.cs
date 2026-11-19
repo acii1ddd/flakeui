@@ -104,9 +104,21 @@ internal sealed class SnowScene
             random.NextDouble() < .78);
     }
 
+    [DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint window, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint FindWindowEx(nint parent, nint after, string className, string? title);
+
     private void RefreshTaskbar(double now, nint overlay, Matrix fromDevice, Size size)
     {
+        var monitor = MonitorFromWindow(overlay, 2);
         var bar = Native.FindWindow("Shell_TrayWnd", null);
+        if (bar == 0 || MonitorFromWindow(bar, 0) != monitor)
+        {
+            bar = 0;
+            while ((bar = FindWindowEx(0, bar, "Shell_SecondaryTrayWnd", null)) != 0)
+                if (MonitorFromWindow(bar, 0) == monitor) break;
+        }
         var origin = new Native.POINT();
         Native.ClientToScreen(overlay, ref origin);
         overlayOrigin = origin;
