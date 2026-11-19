@@ -1,0 +1,24 @@
+name: Publish Windows release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build portable archive
+        shell: pwsh
+        run: ./Publish-Release.ps1 -Version ($env:GITHUB_REF_NAME.Substring(1))
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $asset = (Get-ChildItem artifacts/flakeui-*-win-x64.zip).FullName
+          gh release create $env:GITHUB_REF_NAME $asset --verify-tag --title "flakeui $env:GITHUB_REF_NAME" --generate-notes
