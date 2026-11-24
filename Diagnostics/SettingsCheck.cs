@@ -21,6 +21,20 @@ internal static class SettingsCheck
         static void Click(ButtonBase button) => button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         var panel = open();
         Require(open() == panel, "Settings window duplicated");
+        foreach (var tab in new[] { panel.CursorTab, panel.SnowTab, panel.RunnerTab, panel.RainTab })
+        {
+            Click(tab);
+            foreach (var slider in new[] { panel.Speed, panel.Density })
+            {
+                double original = slider.Value;
+                slider.Value = slider.Maximum / 2;
+                panel.UpdateLayout();
+                var track = (Track)slider.Template.FindName("PART_Track", slider);
+                var center = track.Thumb.TranslatePoint(new Point(track.Thumb.ActualWidth / 2, 0), track);
+                Require(Math.Abs(center.X - track.ActualWidth / 2) <= 1, $"Midpoint: {tab.Content} / {slider.Name}");
+                slider.Value = original;
+            }
+        }
         snowWithRunner();
         Require(panel.Rain.IsChecked == false, "Tray snow state");
         Click(panel.Rain);
@@ -81,7 +95,7 @@ internal static class SettingsCheck
                 // Exercise the actual slider thumb drag event and its full WPF update path.
                 var track = (Track)panel.Speed.Template.FindName("PART_Track", panel.Speed);
                 double next = 100 + 45 * Math.Sin(span.Elapsed.TotalSeconds * 1.6);
-                double pixels = (next - panel.Speed.Value) * (track.ActualWidth - track.Thumb.ActualWidth) / 100;
+                double pixels = (next - panel.Speed.Value) * (track.ActualWidth - track.Thumb.ActualWidth) / (panel.Speed.Maximum - panel.Speed.Minimum);
                 unsnapped = next;
                 track.Thumb.RaiseEvent(new DragDeltaEventArgs(pixels,0) { RoutedEvent = Thumb.DragDeltaEvent });
             }

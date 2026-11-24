@@ -119,6 +119,7 @@ internal sealed class RunnerScene
 
     private void SelectJump()
     {
+        if (Preferences?.JumpSpeed == 0) return;
         Roof? best = null;
         double cost = double.PositiveInfinity;
         foreach (var roof in roofs)

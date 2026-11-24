@@ -44,6 +44,9 @@ internal partial class SettingsWindow : Window
             flakeAge[i] = -1;
             SnowCanvas.Children.Add(dot);
         }
+        StylePicker.ItemsSource = new[] { "Лепестки на ветру", "Цветущая тушь", "Светлячки в саду" };
+        StylePicker.SelectedIndex = (int)preferences.Style;
+        PetalDemo.Select(preferences.Style);
         SelectTab(NativeEffect.Rain);
         ApplyPalette();
 
@@ -52,7 +55,7 @@ internal partial class SettingsWindow : Window
         IsVisibleChanged += (_, _) => UpdateClock();
         StateChanged += (_, _) => UpdateClock();
         Closed += (_, _) => StopClock();
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { if (CancelPond?.Invoke() != true) Close(); e.Handled = true; } };
     }
 
     internal void SyncEffects(NativeEffect current)
@@ -61,17 +64,54 @@ internal partial class SettingsWindow : Window
         Rain.IsChecked = (effects & tab) != 0;
     }
 
+    private void StyleChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if(!ready || StylePicker.SelectedIndex<0)return;
+        preferences.Style=(CursorStyle)StylePicker.SelectedIndex;
+        PetalDemo.Select(preferences.Style);
+        changed();
+    }
+    internal Action? DesktopChanged, PreviewPond;
+    internal Func<bool>? CancelPond;
+    private void DesktopClick(object sender,RoutedEventArgs e)
+    {
+        DesktopPage.Visibility=Visibility.Visible;
+        EffectPage.Visibility=Visibility.Collapsed;
+        DesktopTab.FontWeight=FontWeights.Bold;
+        foreach(var button in new[]{RainTab,RunnerTab,SnowTab,CursorTab})button.FontWeight=FontWeights.Normal;
+        SwitchOption.IsChecked=preferences.DesktopSwitcherEnabled;
+        PondOption.IsChecked=preferences.NightPondEnabled;
+        UpdateClock();
+    }
+    private void DesktopOptionClick(object sender,RoutedEventArgs e)
+    {
+        preferences.DesktopSwitcherEnabled=SwitchOption.IsChecked==true;
+        preferences.NightPondEnabled=PondOption.IsChecked==true;
+        DesktopChanged?.Invoke();
+        SwitchOption.IsChecked=preferences.DesktopSwitcherEnabled;
+    }
+    private void PreviewPondClick(object sender,RoutedEventArgs e) => PreviewPond?.Invoke();
+
     private void TabClick(object sender, RoutedEventArgs e) =>
         SelectTab(Enum.Parse<NativeEffect>((string)((Button)sender).Tag));
 
     private void SelectTab(NativeEffect selected)
     {
         ready = false;
+        DesktopPage.Visibility=Visibility.Collapsed;
+        EffectPage.Visibility=Visibility.Visible;
+        DesktopTab.FontWeight=FontWeights.Normal;
+        UpdateClock();
         tab = selected;
         bool runner = tab == NativeEffect.Runner, snow = tab == NativeEffect.Snow;
-        EffectTitle.Text = runner ? "Раннер" : snow ? "Снег" : "Неоновый дождь";
-        FirstLabel.Text = runner ? "Скорость прыжка" : snow ? "Высота сугробов" : "Скорость";
-        SecondLabel.Text = runner ? "Пауза после посадки" : "Интенсивность";
+        bool cursor = tab == NativeEffect.Cursor;
+        EffectTitle.Visibility = cursor ? Visibility.Collapsed : Visibility.Visible;
+        StylePicker.Visibility = cursor ? Visibility.Visible : Visibility.Collapsed;
+        CursorTab.FontWeight = cursor ? FontWeights.Bold : FontWeights.Normal;
+        CursorPreview.Visibility = cursor ? Visibility.Visible : Visibility.Collapsed;
+        EffectTitle.Text = cursor ? "Эффект курсора" : runner ? "Раннер" : snow ? "Снег" : "Неоновый дождь";
+        FirstLabel.Text = cursor ? "Длина шлейфа" : runner ? "Скорость прыжка" : snow ? "Высота сугробов" : "Скорость";
+        SecondLabel.Text = cursor ? "Сила клика" : runner ? "Пауза после посадки" : "Интенсивность";
         System.Windows.Automation.AutomationProperties.SetName(Rain, EffectTitle.Text);
         System.Windows.Automation.AutomationProperties.SetName(Speed, FirstLabel.Text);
         System.Windows.Automation.AutomationProperties.SetName(Density, SecondLabel.Text);
@@ -81,10 +121,9 @@ internal partial class SettingsWindow : Window
         RainPreview.Visibility = tab == NativeEffect.Rain ? Visibility.Visible : Visibility.Collapsed;
         RunnerPreview.Visibility = runner ? Visibility.Visible : Visibility.Collapsed;
         SnowPreview.Visibility = snow ? Visibility.Visible : Visibility.Collapsed;
-        Density.Minimum = runner ? 50 : 10;
         Density.Maximum = tab == NativeEffect.Rain ? 100 : 150;
-        Speed.Value = runner ? preferences.JumpSpeed : snow ? preferences.SnowHeight : preferences.Speed;
-        Density.Value = runner ? preferences.LandingRest : snow ? preferences.SnowIntensity : preferences.Intensity;
+        Speed.Value = cursor ? preferences.TrailLength : runner ? preferences.JumpSpeed : snow ? preferences.SnowHeight : preferences.Speed;
+        Density.Value = cursor ? preferences.ClickForce : runner ? preferences.LandingRest : snow ? preferences.SnowIntensity : preferences.Intensity;
         Labels();
         SyncEffects(effects);
         ready = true;
@@ -193,6 +232,7 @@ internal partial class SettingsWindow : Window
         switch (tab)
         {
             case NativeEffect.Runner: (preferences.JumpSpeed, preferences.LandingRest) = (speed, intensity); break;
+            case NativeEffect.Cursor: (preferences.TrailLength, preferences.ClickForce) = (speed, intensity); break;
             case NativeEffect.Snow: (preferences.SnowHeight, preferences.SnowIntensity) = (speed, intensity); break;
             default: (preferences.Speed, preferences.Intensity) = (speed, intensity); break;
         }
@@ -203,7 +243,7 @@ internal partial class SettingsWindow : Window
 
     private void UpdateClock()
     {
-        if (!IsLoaded || !IsVisible || WindowState == WindowState.Minimized) { StopClock(); return; }
+        if (DesktopPage.Visibility == Visibility.Visible || !IsLoaded || !IsVisible || WindowState == WindowState.Minimized) { StopClock(); return; }
         if (ticking) return;
         clock.Restart(); last = 0; ticking = true;
         CompositionTarget.Rendering += Animate;
@@ -217,7 +257,7 @@ internal partial class SettingsWindow : Window
     private void AnimateRunner(double dt)
     {
         if (restRemaining > 0) restRemaining -= dt;
-        else
+        else if (jumpDuration > 0 || preferences.JumpSpeed > 0)
         {
             if (jumpDuration == 0) jumpDuration = 1.1 * 100 / preferences.JumpSpeed;
             jumpPhase += dt / jumpDuration;
@@ -319,7 +359,7 @@ internal partial class SettingsWindow : Window
             bool landed = !slide && y + flakes[i].Height >= SnowY(x);
             if (landed || y > 74)
             {
-                if (landed) snowMass += .056;
+                if (landed && limit > 0) snowMass += .056;
                 flakeAge[i] = -1;
                 flakes[i].Opacity = 0;
                 continue;
@@ -335,8 +375,16 @@ internal partial class SettingsWindow : Window
         double now = clock.Elapsed.TotalSeconds;
         double dt = Math.Clamp(now-last,0,.05);
         last = now;
+        if (tab == NativeEffect.Cursor)
+        {
+            PetalDemo.Strength = preferences.ClickForce;
+            PetalDemo.Step(dt, preferences.TrailLength);
+            return;
+        }
         if (tab == NativeEffect.Runner) { AnimateRunner(dt); return; }
         if (tab == NativeEffect.Snow) { AnimateSnow(dt); return; }
+        if (preferences.Intensity == 0) { RaindropShape.Opacity = Ripple.Opacity = 0; return; }
+        if (preferences.Speed == 0) return;
         double flight = .72 * 100 / preferences.Speed;
         phase += dt;
         sinceImpact += dt;

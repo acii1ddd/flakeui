@@ -22,6 +22,11 @@ internal sealed class RainPreferences
     }
 
     public int SnowIntensity { get; set; } = 100;
+    public CursorStyle Style { get; set; }
+    public int TrailLength { get; set; } = 100;
+    public int ClickForce { get; set; } = 100;
+    public bool DesktopSwitcherEnabled { get; set; }
+    public bool NightPondEnabled { get; set; }
     public bool Night { get; set; }
 }
 internal sealed class SettingsStore : IDisposable
@@ -34,12 +39,15 @@ internal sealed class SettingsStore : IDisposable
         file = path ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "flakeui", "settings.json");
         try { Values = JsonSerializer.Deserialize<RainPreferences>(File.ReadAllText(file)) ?? new(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { Values = new(); }
-        Values.Speed = Math.Clamp(Values.Speed,50,150);
-        Values.Intensity = Math.Clamp(Values.Intensity,10,100);
-        Values.JumpSpeed = Math.Clamp(Values.JumpSpeed, 50, 150);
-        Values.LandingRest = Math.Clamp(Values.LandingRest, 50, 150);
-        Values.SnowHeight = Math.Clamp(Values.SnowHeight, 50, 150);
-        Values.SnowIntensity = Math.Clamp(Values.SnowIntensity, 10, 150);
+        Values.Speed = Math.Clamp(Values.Speed,0,150);
+        Values.Intensity = Math.Clamp(Values.Intensity,0,100);
+        Values.JumpSpeed = Math.Clamp(Values.JumpSpeed, 0, 150);
+        Values.LandingRest = Math.Clamp(Values.LandingRest, 0, 150);
+        Values.SnowHeight = Math.Clamp(Values.SnowHeight, 0, 150);
+        Values.SnowIntensity = Math.Clamp(Values.SnowIntensity, 0, 150);
+        if (!Enum.IsDefined(Values.Style)) Values.Style = CursorStyle.Petals;
+        Values.TrailLength = Math.Clamp(Values.TrailLength,0,150);
+        Values.ClickForce = Math.Clamp(Values.ClickForce,0,150);
         timer.Tick += (_, _) => Save();
     }
 

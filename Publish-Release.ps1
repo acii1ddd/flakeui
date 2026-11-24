@@ -1,4 +1,4 @@
-param([string]$Version = '0.1.1')
+param([string]$Version = '0.2.0')
 $ErrorActionPreference = 'Stop'
 $artifacts = Join-Path $PSScriptRoot 'artifacts'
 $stage = Join-Path $artifacts ([guid]::NewGuid().ToString('N'))

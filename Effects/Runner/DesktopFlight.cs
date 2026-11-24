@@ -55,7 +55,7 @@ internal sealed class DesktopFlight
         }
 
         pause -= dt;
-        if (pause > 0) return true;
+        if (pause > 0 || preferences?.JumpSpeed == 0) return true;
 
         nearby.Clear();
         foreach (var icon in icons)

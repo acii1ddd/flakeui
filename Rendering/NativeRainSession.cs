@@ -8,7 +8,7 @@ using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
 [Flags]
-internal enum NativeEffect { None = 0, Rain = 1, Runner = 2, Style = 4, Snow = 8 }
+internal enum NativeEffect { None = 0, Rain = 1, Runner = 2, Style = 4, Snow = 8, Cursor = 16 }
 
 internal sealed class NativeRainSession : IDisposable
 {
@@ -32,6 +32,9 @@ internal sealed class NativeRainSession : IDisposable
     private bool stopped;
     private bool sampling;
 
+    internal bool Stopped => stopped;
+    internal NightPond? Pond { get; set; }
+    internal CursorEffect? Cursor { get; set; }
     internal RainPreferences? Preferences { get; set; }
     internal NativeEffect Effect { get; private set; }
     internal TaskbarSnow? SnowBanks => snow?.Banks;
@@ -136,7 +139,7 @@ internal sealed class NativeRainSession : IDisposable
             previousFrame = now;
             bool refreshed = UpdateWindows(now);
             var elapsed = clock.Elapsed;
-            if (surface != null) surface.Preferences = Preferences;
+            if (surface != null) { surface.Preferences = Preferences; surface.Pond = Pond; }
             surface?.Advance(elapsed, gpu.Handle, fromDevice, invalidate: false, refreshedSnapshot: refreshed);
             if (runner != null) runner.Preferences = Preferences;
             if (snow != null) snow.Preferences = Preferences;
@@ -145,11 +148,14 @@ internal sealed class NativeRainSession : IDisposable
             snow?.Advance(elapsed.TotalSeconds, Math.Clamp(dt, 0, .05), gpu.Handle, fromDevice, viewport);
             nativeSample?.Work.Add(Stopwatch.GetElapsedTime(now).TotalMilliseconds);
 
+            Cursor?.Advance(now,Bounds,scale);
             gpu.StartFrame();
             surface?.DrawNative(gpu, scale);
             snow?.Draw(gpu, scale, elapsed.TotalSeconds);
             runner?.Draw(gpu, scale, elapsed.TotalSeconds);
             style?.Draw(gpu, scale, elapsed.TotalSeconds);
+            if (Cursor != null) gpu.DrawCursor(Cursor.Scene, Bounds, scale);
+            Pond?.Draw(gpu,scale);
             gpu.FinishFrame();
             QueueFrame();
         }

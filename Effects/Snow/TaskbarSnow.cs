@@ -229,7 +229,7 @@ internal sealed class TaskbarSnow
             double removed = drift.Height * (.22 + .30 * strength);
             drift.Height -= removed;
             drift.NextSweep = now + .28;
-            if (drift.Height < Threshold(drift)) drift.Due = 0;
+            if (drift.Height <= .000001 || drift.Height < Threshold(drift)) drift.Due = 0;
             drift.AwaitingRegrowth = drift.IsGap;
             dirty = true;
             nextRidgeUpdate = now;
@@ -256,7 +256,7 @@ internal sealed class TaskbarSnow
             {
                 next.Direction = random.Next(2) == 0 ? -1 : 1;
                 next.Due = 0;
-                next.Remaining = Math.Min(next.Height * ShedFraction, next.Height - .32);
+                next.Remaining = HeightScale == 0 ? next.Height : Math.Min(next.Height * ShedFraction, Math.Max(0, next.Height - Math.Min(.32, Threshold(next) * .4)));
                 next.ShedRate = next.Remaining / SheddingDuration;
                 next.NextGrains = now + .16;
                 next.Elapsed = -.16;
@@ -306,7 +306,7 @@ internal sealed class TaskbarSnow
 
         void Consider(Drift drift)
         {
-            if (drift.Height < Threshold(drift)) drift.Due = 0;
+            if (drift.Height <= .000001 || drift.Height < Threshold(drift)) drift.Due = 0;
             else if (drift.Due == 0) drift.Due = now + MinimumSheddingDelay + random.NextDouble() * (MaximumSheddingDelay - MinimumSheddingDelay);
             if (drift.Due > 0 && drift.Due <= now && (shedding is null || drift.Due < shedding.Due))
                 shedding = drift;

@@ -4,6 +4,7 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <AssemblyTitle>flakeui</AssemblyTitle>
     <Product>flakeui</Product>
+    <Version>0.2.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>flakeui.ico</ApplicationIcon>
     <UseWPF>true</UseWPF>
